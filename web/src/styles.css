@@ -164,6 +164,11 @@ body {
   align-items: center;
 }
 
+.guided-row {
+  margin-top: 8px;
+  align-items: center;
+}
+
 .caption {
   color: #245797;
   font-size: 14px;
@@ -303,7 +308,8 @@ body {
 
 .badge-warn,
 .badge-missing,
-.badge-edited {
+.badge-edited,
+.badge-confirmed {
   margin-left: 8px;
   font-size: 11px;
   padding: 2px 6px;
@@ -326,8 +332,23 @@ body {
   color: #1e40af;
 }
 
+.badge-confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+
 .field-missing input {
   border-color: #ed5665;
+}
+
+.field-actions {
+  margin-top: 8px;
+}
+
+.btn-confirm {
+  background: linear-gradient(160deg, #2f9e63 0%, #1f7a4b 100%);
+  padding: 7px 11px;
+  font-size: 12px;
 }
 
 .narrative-box {

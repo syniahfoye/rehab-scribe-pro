@@ -54,6 +54,26 @@ function formatFieldValue(value: string | number | boolean): string {
   return String(value);
 }
 
+function fieldKeywords(label: string, hint?: string): string[] {
+  const source = `${label} ${hint ?? ""}`.toLowerCase();
+  const stopWords = new Set(["the", "and", "for", "with", "from", "that", "this", "into", "while"]);
+  return Array.from(
+    new Set(
+      source
+        .split(/[^a-z0-9]+/)
+        .map((w) => w.trim())
+        .filter((w) => w.length >= 3 && !stopWords.has(w))
+    )
+  );
+}
+
+type GuidedTarget = {
+  fieldId: string;
+  sectionId: string;
+  label: string;
+  hint?: string;
+};
+
 export function App() {
   const [patientId, setPatientId] = useState("rehab-patient-123");
   const [encounter, setEncounter] = useState<Encounter | null>(null);
@@ -65,6 +85,9 @@ export function App() {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [manualFieldEdits, setManualFieldEdits] = useState<Record<string, string>>({});
+  const [confirmedFieldIds, setConfirmedFieldIds] = useState<Record<string, true>>({});
+  const [guidedCaptureOn, setGuidedCaptureOn] = useState(true);
+  const [guidedCursor, setGuidedCursor] = useState(0);
   const [reviewCursor, setReviewCursor] = useState(-1);
   const [activeReviewFieldId, setActiveReviewFieldId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -131,6 +154,18 @@ export function App() {
   }, [encounter]);
   const missingRequiredCount = encounter?.draft?.missingRequiredFields.length ?? 0;
   const lowConfidenceCount = lowConfidence.size;
+  const guidedTargets = useMemo<GuidedTarget[]>(
+    () =>
+      rehabSciIrfAssessmentTemplate.sections.flatMap((section) =>
+        section.fields.map((field) => ({
+          fieldId: field.id,
+          sectionId: section.id,
+          label: field.label,
+          hint: field.hint
+        }))
+      ),
+    []
+  );
   const lowConfidenceReviewTargets = useMemo(
     () =>
       rehabSciIrfAssessmentTemplate.sections.flatMap((section) =>
@@ -140,6 +175,16 @@ export function App() {
       ),
     [lowConfidence]
   );
+
+  function focusField(fieldId: string, sectionId: string) {
+    setOpenSection(sectionId);
+    setActiveReviewFieldId(fieldId);
+    window.requestAnimationFrame(() => {
+      const target = fieldInputRefs.current[fieldId];
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      target?.focus();
+    });
+  }
 
   useEffect(() => {
     if (!activeReviewFieldId) return;
@@ -159,15 +204,61 @@ export function App() {
     const nextTarget = lowConfidenceReviewTargets[nextIndex];
 
     setReviewCursor(nextIndex);
-    setOpenSection(nextTarget.sectionId);
-    setActiveReviewFieldId(nextTarget.fieldId);
+    focusField(nextTarget.fieldId, nextTarget.sectionId);
     setMessage(`Review ${nextIndex + 1}/${lowConfidenceReviewTargets.length}: ${nextTarget.label}`);
+  }
 
-    window.requestAnimationFrame(() => {
-      const target = fieldInputRefs.current[nextTarget.fieldId];
-      target?.scrollIntoView({ behavior: "smooth", block: "center" });
-      target?.focus();
+  function confirmField(fieldId: string) {
+    setConfirmedFieldIds((prev) => ({ ...prev, [fieldId]: true }));
+    setMessage("Field confirmed.");
+    const currentTarget = guidedTargets[guidedCursor];
+    if (guidedCaptureOn && currentTarget?.fieldId === fieldId) {
+      const nextCursor = Math.min(guidedCursor + 1, guidedTargets.length - 1);
+      setGuidedCursor(nextCursor);
+      const nextTarget = guidedTargets[nextCursor];
+      if (nextTarget) {
+        focusField(nextTarget.fieldId, nextTarget.sectionId);
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!guidedCaptureOn || !speech.listening) return;
+    const currentTarget = guidedTargets[guidedCursor];
+    if (currentTarget) {
+      focusField(currentTarget.fieldId, currentTarget.sectionId);
+      setMessage(`Guided capture active: ${currentTarget.label}`);
+    }
+  }, [guidedCaptureOn, guidedCursor, guidedTargets, speech.listening]);
+
+  useEffect(() => {
+    if (!guidedCaptureOn || !speech.listening || !speech.caption?.trim()) return;
+    const spoken = speech.caption.toLowerCase();
+    let bestIdx: number | null = null;
+    let bestScore = 0;
+    guidedTargets.forEach((target, idx) => {
+      const score = fieldKeywords(target.label, target.hint).reduce((acc, keyword) => acc + (spoken.includes(keyword) ? 1 : 0), 0);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = idx;
+      }
     });
+    if (bestIdx !== null && bestScore > 0) {
+      const nextTarget = guidedTargets[bestIdx];
+      setGuidedCursor(bestIdx);
+      focusField(nextTarget.fieldId, nextTarget.sectionId);
+      setMessage(`Detected topic: ${nextTarget.label}. Capture and confirm when ready.`);
+    }
+  }, [guidedCaptureOn, guidedTargets, speech.caption, speech.listening]);
+
+  function advanceGuidedField() {
+    const nextCursor = Math.min(guidedCursor + 1, guidedTargets.length - 1);
+    setGuidedCursor(nextCursor);
+    const nextTarget = guidedTargets[nextCursor];
+    if (nextTarget) {
+      focusField(nextTarget.fieldId, nextTarget.sectionId);
+      setMessage(`Next field: ${nextTarget.label}`);
+    }
   }
 
   async function runStep(path: string, method: "POST" = "POST", body?: unknown, role: "nurse" | "physician" = "nurse") {
@@ -198,8 +289,10 @@ export function App() {
       setEncounter((data.updated ?? data) as Encounter);
       if (path.endsWith("/start")) {
         setManualFieldEdits({});
+        setConfirmedFieldIds({});
         setActiveReviewFieldId(null);
         setReviewCursor(-1);
+        setGuidedCursor(0);
       }
       setMessage(`Step complete: ${path}`);
     } catch (e) {
@@ -400,6 +493,17 @@ export function App() {
               </button>
             )}
           </div>
+          <div className="actions guided-row">
+            <button type="button" onClick={() => setGuidedCaptureOn((v) => !v)}>
+              {guidedCaptureOn ? "Guided capture on" : "Guided capture off"}
+            </button>
+            <button type="button" disabled={!guidedCaptureOn} onClick={advanceGuidedField}>
+              Next documentation field
+            </button>
+            <span className="muted small">
+              Target: {guidedTargets[guidedCursor]?.label ?? "None"}
+            </span>
+          </div>
           {speech.speechError ? <p className="speech-error">{speech.speechError}</p> : null}
           {speech.speechError ? (
             <p className="help server-speech-hint">
@@ -486,6 +590,7 @@ export function App() {
                           const warn = lowConfidence.has(field.id);
                           const missing = encounter?.draft?.missingRequiredFields.includes(field.id);
                           const manuallyEdited = manualFieldEdits[field.id] !== undefined;
+                          const confirmed = Boolean(confirmedFieldIds[field.id]);
                           return (
                             <label
                               key={field.id}
@@ -499,6 +604,7 @@ export function App() {
                                 {warn ? <span className="badge-warn">review</span> : null}
                                 {missing ? <span className="badge-missing">required</span> : null}
                                 {manuallyEdited ? <span className="badge-edited">edited</span> : null}
+                                {confirmed ? <span className="badge-confirmed">confirmed</span> : null}
                               </span>
                               {field.hint ? <span className="field-hint">{field.hint}</span> : null}
                               <input
@@ -512,16 +618,36 @@ export function App() {
                                     return next;
                                   });
                                 }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && lowConfidenceReviewTargets.length > 0) {
+                                    e.preventDefault();
+                                    reviewNextLowConfidenceField();
+                                  }
+                                }}
                                 placeholder={field.required ? "Say or type details — maps here when heard" : "Optional — maps when mentioned"}
                                 ref={(node) => {
                                   fieldInputRefs.current[field.id] = node;
                                 }}
                               />
-                              {fact?.evidence ? (
+                              {manuallyEdited ? (
+                                <span className="evidence">
+                                  Manual entry captured · confidence 100%
+                                </span>
+                              ) : fact?.evidence ? (
                                 <span className="evidence">
                                   Heard: <em>{fact.evidence}</em> · confidence {(fact.confidence * 100).toFixed(0)}%
                                 </span>
                               ) : null}
+                              <div className="field-actions">
+                                <button
+                                  type="button"
+                                  className="btn-confirm"
+                                  disabled={!valueText.trim()}
+                                  onClick={() => confirmField(field.id)}
+                                >
+                                  Confirm entry
+                                </button>
+                              </div>
                             </label>
                           );
                         })}
