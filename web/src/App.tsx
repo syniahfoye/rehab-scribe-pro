@@ -191,8 +191,11 @@ export function App() {
         base.delete(fieldId);
       }
     });
+    Object.keys(confirmedFieldIds).forEach((fieldId) => {
+      base.delete(fieldId);
+    });
     return base;
-  }, [encounter?.draft?.lowConfidenceFields, manualFieldEdits, previewFacts]);
+  }, [confirmedFieldIds, encounter?.draft?.lowConfidenceFields, manualFieldEdits, previewFacts]);
 
   const requiredFieldIds = useMemo(
     () =>
@@ -279,7 +282,19 @@ export function App() {
 
   function confirmField(fieldId: string) {
     setConfirmedFieldIds((prev) => ({ ...prev, [fieldId]: true }));
-    setMessage("Field confirmed.");
+    const remainingAfterConfirm = lowConfidenceReviewTargets.filter((target) => target.fieldId !== fieldId);
+    if (remainingAfterConfirm.length === 0) {
+      setActiveReviewFieldId(null);
+      setReviewCursor(-1);
+      setMessage("All low-confidence fields confirmed.");
+    } else {
+      const currentIdx = lowConfidenceReviewTargets.findIndex((target) => target.fieldId === fieldId);
+      const nextIdx = currentIdx >= 0 ? Math.min(currentIdx, remainingAfterConfirm.length - 1) : 0;
+      const nextTarget = remainingAfterConfirm[nextIdx];
+      setReviewCursor(nextIdx);
+      focusField(nextTarget.fieldId, nextTarget.sectionId);
+      setMessage(`Confirmed. Next review: ${nextTarget.label}`);
+    }
     const currentTarget = guidedTargets[guidedCursor];
     if (guidedCaptureOn && currentTarget?.fieldId === fieldId) {
       const nextCursor = Math.min(guidedCursor + 1, guidedTargets.length - 1);

@@ -11,7 +11,7 @@ type RegexRule = {
 
 function normalizeTranscript(text: string): string {
   return text
-    .replace(/([a-z])([A-Z])/g, "$1. $2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1. $2")
     .replace(/\s+/g, " ")
     .replace(
       /\b(patient name is|name is|date of birth is|date of birth|account name is|mrn|blood pressure is|blood pressure|heart rate is|heart rate|respiratory rate is|respiratory rate|temperature is|temperature|weight is|weight|chief complaint is|chief complaint)\b/gi,
@@ -19,6 +19,53 @@ function normalizeTranscript(text: string): string {
     )
     .replace(/\.\s+\./g, ". ")
     .trim();
+}
+
+function normalizeDob(raw: string): string {
+  const value = raw.trim().toLowerCase();
+  const months: Record<string, string> = {
+    january: "01",
+    february: "02",
+    march: "03",
+    april: "04",
+    may: "05",
+    june: "06",
+    july: "07",
+    august: "08",
+    september: "09",
+    october: "10",
+    november: "11",
+    december: "12"
+  };
+
+  const monthNameMatch = value.match(
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2}),?\s*(\d{4})\b/i
+  );
+  if (monthNameMatch) {
+    const mm = months[monthNameMatch[1].toLowerCase()];
+    const dd = monthNameMatch[2].padStart(2, "0");
+    const yyyy = monthNameMatch[3];
+    return `${mm}/${dd}/${yyyy}`;
+  }
+
+  const compactMatch = value.match(/\b(\d{4})\s+(\d{4})\b/);
+  if (compactMatch) {
+    const md = compactMatch[1];
+    const yyyy = compactMatch[2];
+    const mm = md.slice(0, 2);
+    const dd = md.slice(2, 4);
+    return `${mm}/${dd}/${yyyy}`;
+  }
+
+  const slashOrDashMatch = value.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
+  if (slashOrDashMatch) {
+    const mm = slashOrDashMatch[1].padStart(2, "0");
+    const dd = slashOrDashMatch[2].padStart(2, "0");
+    const yyyy = slashOrDashMatch[3].length === 2 ? `20${slashOrDashMatch[3]}` : slashOrDashMatch[3];
+    return `${mm}/${dd}/${yyyy}`;
+  }
+
+  return raw.trim();
 }
 
 function parseNumberToken(raw: string): number {
@@ -51,7 +98,8 @@ const regexRules: RegexRule[] = [
     value: "match1"
   },
   {
-    pattern: /(?:date of birth|d\.?o\.?b\.?|born on)\s*[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s+\d{1,2}\s+\d{4}|\d{4}\s+\d{4})/i,
+    pattern:
+      /(?:date of birth|d\.?o\.?b\.?|born on)\s*[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s+\d{1,2}\s+\d{4}|\d{4}\s+\d{4}|(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4})/i,
     fieldId: "date_of_birth",
     confidence: 0.8,
     value: "match1"
@@ -127,6 +175,9 @@ function resolveValue(rule: RegexRule, match: RegExpMatchArray): string | number
   }
   if (rule.value === "match1") {
     const raw = match[1] || match[0];
+    if (rule.fieldId === "date_of_birth") {
+      return normalizeDob(String(raw));
+    }
     if (rule.fieldId === "neuro_asia_grade") {
       return `ASIA ${String(match[1]).toUpperCase()}`;
     }
