@@ -77,6 +77,10 @@ type GuidedTarget = {
   hint?: string;
 };
 
+function buildPatientSnapshot(entries: ConversationHistoryItem[]): string {
+  return entries.map((entry) => `${entry.discipline.toUpperCase()} (${entry.clinicianId}): ${entry.text}`).join("\n\n");
+}
+
 export function App() {
   const initialSectionId = rehabSciIrfAssessmentTemplate.sections[0]?.id ?? null;
   const [patientId, setPatientId] = useState("rehab-patient-123");
@@ -133,7 +137,7 @@ export function App() {
       if (entries.length > 0) {
         const latest = entries[entries.length - 1];
         setSelectedHistoryId(latest.id);
-        setAudioHint(latest.text);
+        setAudioHint(buildPatientSnapshot(entries));
         setMessage(`Loaded ${entries.length} saved conversation entr${entries.length === 1 ? "y" : "ies"} for patient ${trimmed}.`);
       } else {
         setSelectedHistoryId(null);
