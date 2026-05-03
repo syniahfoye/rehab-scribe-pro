@@ -232,6 +232,24 @@ body {
   padding-top: 8px;
 }
 
+.history-item {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-align: left;
+  padding: 8px;
+  background: transparent;
+}
+
+.history-item:hover {
+  background: #eef5ff;
+}
+
+.history-item-selected {
+  background: #e6f0ff;
+  border-color: #8db2ea;
+}
+
 .history-meta {
   margin: 0;
   display: flex;
@@ -501,6 +519,28 @@ button:disabled {
   cursor: not-allowed;
   transform: none;
   filter: none;
+}
+
+button.history-item {
+  background: transparent;
+  color: inherit;
+  border: 1px solid transparent;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+button.history-item:hover {
+  background: #eef5ff;
+  transform: none;
+  filter: none;
+}
+
+button.history-item.history-item-selected {
+  background: #e6f0ff;
+  border-color: #8db2ea;
 }
 
 pre {

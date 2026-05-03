@@ -82,6 +82,7 @@ export function App() {
   const [discipline, setDiscipline] = useState("nursing");
   const [historyFilterDiscipline, setHistoryFilterDiscipline] = useState("all");
   const [patientHistory, setPatientHistory] = useState<ConversationHistoryItem[]>([]);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [audioHint, setAudioHint] = useState(DEMO_TRANSCRIPT);
@@ -116,6 +117,8 @@ export function App() {
     const trimmed = targetPatientId.trim();
     if (!trimmed) {
       setPatientHistory([]);
+      setSelectedHistoryId(null);
+      setAudioHint("");
       return;
     }
     setHistoryLoading(true);
@@ -126,7 +129,18 @@ export function App() {
       });
       if (!res.ok) return;
       const data = (await res.json()) as { entries?: ConversationHistoryItem[] };
-      setPatientHistory(data.entries ?? []);
+      const entries = data.entries ?? [];
+      setPatientHistory(entries);
+      if (entries.length > 0) {
+        const latest = entries[entries.length - 1];
+        setSelectedHistoryId(latest.id);
+        setAudioHint(latest.text);
+        setMessage(`Loaded ${entries.length} saved conversation entr${entries.length === 1 ? "y" : "ies"} for patient ${trimmed}.`);
+      } else {
+        setSelectedHistoryId(null);
+        setAudioHint("");
+        setMessage(`No saved conversation history for patient ${trimmed} yet.`);
+      }
     } finally {
       setHistoryLoading(false);
     }
@@ -497,7 +511,22 @@ export function App() {
           <h2>Encounter</h2>
           <label>
             Patient ID (account)
-            <input value={patientId} onChange={(e) => setPatientId(e.target.value)} />
+            <input
+              value={patientId}
+              onChange={(e) => {
+                const nextPatientId = e.target.value;
+                setPatientId(nextPatientId);
+                setEncounter(null);
+                setAudioHint("");
+                setPatientHistory([]);
+                setSelectedHistoryId(null);
+                setManualFieldEdits({});
+                setConfirmedFieldIds({});
+                setActiveReviewFieldId(null);
+                setReviewCursor(-1);
+                setGuidedCursor(0);
+              }}
+            />
           </label>
           <div className="grid-inline">
             <label>
@@ -561,14 +590,23 @@ export function App() {
               <p className="muted small">No saved conversation history for this patient yet.</p>
             ) : (
               patientHistory.map((entry) => (
-                <div key={entry.id} className="history-item">
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={`history-item ${selectedHistoryId === entry.id ? "history-item-selected" : ""}`}
+                  onClick={() => {
+                    setSelectedHistoryId(entry.id);
+                    setAudioHint(entry.text);
+                    setMessage(`Loaded conversation by ${entry.clinicianId} (${entry.discipline.toUpperCase()}).`);
+                  }}
+                >
                   <p className="history-meta">
                     <span>{new Date(entry.timestamp).toLocaleString()}</span>
                     <span>{entry.discipline.toUpperCase()}</span>
                     <span>{entry.clinicianId}</span>
                   </p>
                   <p className="history-text">{entry.text}</p>
-                </div>
+                </button>
               ))
             )}
           </div>
