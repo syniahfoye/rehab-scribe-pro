@@ -78,6 +78,7 @@ type GuidedTarget = {
 };
 
 export function App() {
+  const initialSectionId = rehabSciIrfAssessmentTemplate.sections[0]?.id ?? null;
   const [patientId, setPatientId] = useState("rehab-patient-123");
   const [clinicianId, setClinicianId] = useState("nurse-demo-1");
   const [discipline, setDiscipline] = useState("nursing");
@@ -89,7 +90,7 @@ export function App() {
   const [audioHint, setAudioHint] = useState(DEMO_TRANSCRIPT);
   const [message, setMessage] = useState("Start an encounter, verify consent, then use live listening or edit the transcript.");
   const [previewFacts, setPreviewFacts] = useState<ExtractedFact[]>([]);
-  const [openSection, setOpenSection] = useState<string | null>(rehabSciIrfAssessmentTemplate.sections[0]?.id ?? null);
+  const [openSection, setOpenSection] = useState<string | null>(initialSectionId);
   const [manualFieldEdits, setManualFieldEdits] = useState<Record<string, string>>({});
   const [confirmedFieldIds, setConfirmedFieldIds] = useState<Record<string, true>>({});
   const [guidedCaptureOn, setGuidedCaptureOn] = useState(true);
@@ -97,6 +98,7 @@ export function App() {
   const [reviewCursor, setReviewCursor] = useState(-1);
   const [activeReviewFieldId, setActiveReviewFieldId] = useState<string | null>(null);
   const fieldInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const historyRequestSeqRef = useRef(0);
 
   const audioHintRef = useRef(audioHint);
   useEffect(() => {
@@ -109,6 +111,7 @@ export function App() {
   });
 
   async function loadPatientHistory(targetPatientId: string) {
+    const requestSeq = ++historyRequestSeqRef.current;
     const trimmed = targetPatientId.trim();
     if (!trimmed) {
       setPatientHistory([]);
@@ -122,6 +125,7 @@ export function App() {
       const res = await fetch(`${apiBase}/patients/${encodeURIComponent(trimmed)}/history${query}`, {
         headers: { ...baseHeaders, "x-user-id": clinicianId }
       });
+      if (requestSeq !== historyRequestSeqRef.current) return;
       if (!res.ok) return;
       const data = (await res.json()) as { entries?: ConversationHistoryItem[] };
       const entries = data.entries ?? [];
@@ -137,8 +141,22 @@ export function App() {
         setMessage(`No saved conversation history for patient ${trimmed} yet.`);
       }
     } finally {
-      setHistoryLoading(false);
+      if (requestSeq === historyRequestSeqRef.current) {
+        setHistoryLoading(false);
+      }
     }
+  }
+
+  function resetAssessmentState() {
+    setEncounter(null);
+    setAudioHint("");
+    setPreviewFacts([]);
+    setManualFieldEdits({});
+    setConfirmedFieldIds({});
+    setActiveReviewFieldId(null);
+    setReviewCursor(-1);
+    setGuidedCursor(0);
+    setOpenSection(initialSectionId);
   }
 
   useEffect(() => {
@@ -183,21 +201,19 @@ export function App() {
       ),
     []
   );
-  const currentFieldValues = useMemo(() => {
-    const values = new Map<string, string>();
-    displayFacts.forEach((fact) => {
-      const text = formatFieldValue(fact.value).trim();
-      if (text) values.set(fact.fieldId, text);
-    });
-    Object.entries(manualFieldEdits).forEach(([fieldId, value]) => {
-      const text = value.trim();
-      if (text) values.set(fieldId, text);
-    });
-    return values;
-  }, [displayFacts, manualFieldEdits]);
   const currentMissingRequired = useMemo(
-    () => requiredFieldIds.filter((fieldId) => !currentFieldValues.has(fieldId)),
-    [currentFieldValues, requiredFieldIds]
+    () =>
+      requiredFieldIds.filter((fieldId) => {
+        const manualValue = manualFieldEdits[fieldId]?.trim();
+        if (manualValue) return false;
+        const fact = factsById.get(fieldId);
+        if (!fact) return true;
+        const valueText = formatFieldValue(fact.value).trim();
+        if (!valueText) return true;
+        if (lowConfidence.has(fieldId)) return true;
+        return false;
+      }),
+    [factsById, lowConfidence, manualFieldEdits, requiredFieldIds]
   );
 
   const canSignOff = useMemo(() => {
@@ -375,6 +391,18 @@ export function App() {
     await runStep("/draft");
   }
 
+  async function saveTranscriptFlow() {
+    if (!encounter) {
+      setMessage("Start an encounter first.");
+      return;
+    }
+    if (!encounter.consentVerified) {
+      const consentOk = await runStep("/consent");
+      if (!consentOk) return;
+    }
+    await runStep("/transcribe", "POST", { audioHint });
+  }
+
   return (
     <main className="container layout-wide">
       <header className="page-header">
@@ -431,15 +459,9 @@ export function App() {
               onChange={(e) => {
                 const nextPatientId = e.target.value;
                 setPatientId(nextPatientId);
-                setEncounter(null);
-                setAudioHint("");
+                resetAssessmentState();
                 setPatientHistory([]);
                 setSelectedHistoryId(null);
-                setManualFieldEdits({});
-                setConfirmedFieldIds({});
-                setActiveReviewFieldId(null);
-                setReviewCursor(-1);
-                setGuidedCursor(0);
               }}
             />
           </label>
@@ -475,7 +497,7 @@ export function App() {
             <button disabled={!encounter} onClick={() => runStep("/consent")}>
               Verify consent
             </button>
-            <button disabled={!encounter} onClick={() => runStep("/transcribe", "POST", { audioHint })}>
+            <button disabled={!encounter} onClick={() => void saveTranscriptFlow()}>
               Save transcript
             </button>
             <button disabled={!encounter} onClick={() => void generateDraftFlow()}>

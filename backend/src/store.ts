@@ -38,7 +38,18 @@ export type ConversationLog = {
 
 const encounters = new Map<string, Encounter>();
 const audits: AuditEvent[] = [];
-const conversationLogs: ConversationLog[] = [];
+const conversationLogs: ConversationLog[] = [
+  {
+    id: randomUUID(),
+    patientId: "rehab-patient-123",
+    encounterId: "seed-encounter-001",
+    clinicianId: "nurse-demo-1",
+    discipline: "nursing",
+    text:
+      "Patient name is Alex Rivera. Date of birth 03/15/1990. MRN ABC12345. Blood pressure 122 over 78, heart rate 74, respiratory rate 16.",
+    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString()
+  }
+];
 
 export const createEncounter = (input: {
   patientId: string;
