@@ -5,7 +5,15 @@ import { z } from "zod";
 import { buildDraft, transcribeAudio } from "./clinical.js";
 import { transcribeWithOpenAIWhisper } from "./openaiTranscribe.js";
 import { requireMfaHeader, requireRole } from "./security.js";
-import { appendAudit, createEncounter, getEncounter, listAudits, updateEncounter } from "./store.js";
+import {
+  appendAudit,
+  appendConversationLog,
+  createEncounter,
+  getEncounter,
+  listAudits,
+  listConversationLogsForPatient,
+  updateEncounter
+} from "./store.js";
 
 const app = express();
 app.use(cors());
@@ -62,6 +70,7 @@ app.post(
 const startSchema = z.object({
   patientId: z.string().min(1),
   clinicianId: z.string().min(1),
+  discipline: z.string().min(1).default("nursing"),
   templateId: z.string().default("rehab_sci_irf_assessment_v1")
 });
 
@@ -103,8 +112,28 @@ app.post("/api/encounters/:id/transcribe", requireMfaHeader, requireRole("nurse"
 
   const transcript = await transcribeAudio(input.data.audioHint);
   const updated = updateEncounter(encounter.id, { transcript, status: "transcribed" });
+  appendConversationLog({
+    patientId: encounter.patientId,
+    encounterId: encounter.id,
+    clinicianId: String(req.header("x-user-id") || encounter.clinicianId),
+    discipline: encounter.discipline,
+    text: input.data.audioHint
+  });
   appendAudit({ encounterId: encounter.id, action: "transcribed", actor: encounter.clinicianId });
   res.json(updated);
+});
+
+app.get("/api/patients/:patientId/history", requireMfaHeader, requireRole("nurse"), (req, res) => {
+  const patientId = req.params.patientId.trim();
+  if (!patientId) {
+    res.status(400).json({ error: "Patient ID is required" });
+    return;
+  }
+  const discipline = String(req.query.discipline || "").trim().toLowerCase();
+  const entries = listConversationLogsForPatient(patientId)
+    .filter((entry) => (discipline ? entry.discipline.toLowerCase() === discipline : true))
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  res.json({ patientId, entries });
 });
 
 app.post("/api/encounters/:id/draft", requireMfaHeader, requireRole("nurse"), (req, res) => {

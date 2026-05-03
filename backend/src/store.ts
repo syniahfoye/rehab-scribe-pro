@@ -5,6 +5,7 @@ export type Encounter = {
   id: string;
   patientId: string;
   clinicianId: string;
+  discipline: string;
   templateId: string;
   status: EncounterStatus;
   consentVerified: boolean;
@@ -25,12 +26,24 @@ export type AuditEvent = {
   metadata?: Record<string, unknown>;
 };
 
+export type ConversationLog = {
+  id: string;
+  patientId: string;
+  encounterId: string;
+  clinicianId: string;
+  discipline: string;
+  text: string;
+  timestamp: string;
+};
+
 const encounters = new Map<string, Encounter>();
 const audits: AuditEvent[] = [];
+const conversationLogs: ConversationLog[] = [];
 
 export const createEncounter = (input: {
   patientId: string;
   clinicianId: string;
+  discipline: string;
   templateId: string;
 }) => {
   const now = new Date().toISOString();
@@ -38,6 +51,7 @@ export const createEncounter = (input: {
     id: randomUUID(),
     patientId: input.patientId,
     clinicianId: input.clinicianId,
+    discipline: input.discipline,
     templateId: input.templateId,
     status: "started",
     consentVerified: false,
@@ -70,3 +84,22 @@ export const appendAudit = (event: Omit<AuditEvent, "id" | "timestamp">) => {
 
 export const listAudits = (encounterId?: string) =>
   encounterId ? audits.filter((a) => a.encounterId === encounterId) : audits;
+
+export const appendConversationLog = (input: {
+  patientId: string;
+  encounterId: string;
+  clinicianId: string;
+  discipline: string;
+  text: string;
+}) => {
+  const item: ConversationLog = {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    ...input
+  };
+  conversationLogs.push(item);
+  return item;
+};
+
+export const listConversationLogsForPatient = (patientId: string) =>
+  conversationLogs.filter((entry) => entry.patientId === patientId);

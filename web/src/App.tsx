@@ -7,6 +7,7 @@ import { useSpeechCaption } from "./useSpeechCaption";
 type Encounter = {
   id: string;
   status: string;
+  discipline?: string;
   draft?: {
     narrative: string;
     missingRequiredFields: string[];
@@ -15,21 +16,22 @@ type Encounter = {
   };
 };
 
+type ConversationHistoryItem = {
+  id: string;
+  patientId: string;
+  encounterId: string;
+  clinicianId: string;
+  discipline: string;
+  text: string;
+  timestamp: string;
+};
+
 const apiBase = import.meta.env.VITE_API_ORIGIN
   ? `${import.meta.env.VITE_API_ORIGIN.replace(/\/$/, "")}/api`
   : "/api";
 
-const headers = {
-  "Content-Type": "application/json",
+const baseHeaders = {
   "x-user-role": "nurse",
-  "x-user-id": "nurse-demo-1",
-  "x-mfa-verified": "true"
-};
-
-/** For FormData uploads do not set Content-Type (browser sets multipart boundary). */
-const headersMultipart: HeadersInit = {
-  "x-user-role": "nurse",
-  "x-user-id": "nurse-demo-1",
   "x-mfa-verified": "true"
 };
 
@@ -76,6 +78,11 @@ type GuidedTarget = {
 
 export function App() {
   const [patientId, setPatientId] = useState("rehab-patient-123");
+  const [clinicianId, setClinicianId] = useState("nurse-demo-1");
+  const [discipline, setDiscipline] = useState("nursing");
+  const [historyFilterDiscipline, setHistoryFilterDiscipline] = useState("all");
+  const [patientHistory, setPatientHistory] = useState<ConversationHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [audioHint, setAudioHint] = useState(DEMO_TRANSCRIPT);
   const [message, setMessage] = useState("Start an encounter, verify consent, then use live listening or edit the transcript.");
@@ -104,6 +111,33 @@ export function App() {
     getBaseline: () => audioHintRef.current,
     setLiveTranscript: setAudioHint
   });
+
+  async function loadPatientHistory(targetPatientId: string) {
+    const trimmed = targetPatientId.trim();
+    if (!trimmed) {
+      setPatientHistory([]);
+      return;
+    }
+    setHistoryLoading(true);
+    try {
+      const query = historyFilterDiscipline === "all" ? "" : `?discipline=${encodeURIComponent(historyFilterDiscipline)}`;
+      const res = await fetch(`${apiBase}/patients/${encodeURIComponent(trimmed)}/history${query}`, {
+        headers: { ...baseHeaders, "x-user-id": clinicianId }
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { entries?: ConversationHistoryItem[] };
+      setPatientHistory(data.entries ?? []);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void loadPatientHistory(patientId);
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [historyFilterDiscipline, patientId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -293,7 +327,7 @@ export function App() {
     try {
       const res = await fetch(target, {
         method,
-        headers: { ...headers, "x-user-role": role },
+        headers: { ...baseHeaders, "Content-Type": "application/json", "x-user-role": role, "x-user-id": clinicianId },
         body: body ? JSON.stringify(body) : undefined
       });
 
@@ -318,6 +352,9 @@ export function App() {
         setActiveReviewFieldId(null);
         setReviewCursor(-1);
         setGuidedCursor(0);
+      }
+      if (path.endsWith("/transcribe")) {
+        void loadPatientHistory(patientId);
       }
       setMessage(`Step complete: ${path}`);
     } catch (e) {
@@ -387,7 +424,7 @@ export function App() {
     try {
       const res = await fetch(`${apiBase}/speech/transcribe`, {
         method: "POST",
-        headers: headersMultipart,
+        headers: { ...baseHeaders, "x-user-id": clinicianId },
         body: fd
       });
       const data = (await res.json()) as { text?: string; error?: string };
@@ -462,12 +499,29 @@ export function App() {
             Patient ID (account)
             <input value={patientId} onChange={(e) => setPatientId(e.target.value)} />
           </label>
+          <div className="grid-inline">
+            <label>
+              Clinician ID
+              <input value={clinicianId} onChange={(e) => setClinicianId(e.target.value)} />
+            </label>
+            <label>
+              Current discipline
+              <select value={discipline} onChange={(e) => setDiscipline(e.target.value)}>
+                <option value="nursing">Nursing</option>
+                <option value="ot">OT</option>
+                <option value="pt">PT</option>
+                <option value="rt">RT</option>
+                <option value="physician">Physician</option>
+              </select>
+            </label>
+          </div>
           <div className="actions">
             <button
               onClick={() =>
                 runStep("/encounters/start", "POST", {
                   patientId,
-                  clinicianId: "nurse-demo-1",
+                  clinicianId,
+                  discipline,
                   templateId: "rehab_sci_irf_assessment_v1"
                 })
               }
@@ -486,6 +540,38 @@ export function App() {
           </div>
 
           <h3>Conversation (typed or dictated)</h3>
+          <div className="history-head">
+            <h4>Patient conversation history</h4>
+            <label className="history-filter">
+              Filter
+              <select value={historyFilterDiscipline} onChange={(e) => setHistoryFilterDiscipline(e.target.value)}>
+                <option value="all">All disciplines</option>
+                <option value="nursing">Nursing</option>
+                <option value="ot">OT</option>
+                <option value="pt">PT</option>
+                <option value="rt">RT</option>
+                <option value="physician">Physician</option>
+              </select>
+            </label>
+          </div>
+          <div className="history-box">
+            {historyLoading ? (
+              <p className="muted small">Loading history...</p>
+            ) : patientHistory.length === 0 ? (
+              <p className="muted small">No saved conversation history for this patient yet.</p>
+            ) : (
+              patientHistory.map((entry) => (
+                <div key={entry.id} className="history-item">
+                  <p className="history-meta">
+                    <span>{new Date(entry.timestamp).toLocaleString()}</span>
+                    <span>{entry.discipline.toUpperCase()}</span>
+                    <span>{entry.clinicianId}</span>
+                  </p>
+                  <p className="history-text">{entry.text}</p>
+                </div>
+              ))
+            )}
+          </div>
           <p className="help">
             Sections update from this text within about half a second.{" "}
             <strong>Start listening</strong> uses Google (often blocked on hospital Wi‑Fi).{" "}
