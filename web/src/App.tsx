@@ -7,6 +7,7 @@ import { useSpeechCaption } from "./useSpeechCaption";
 type Encounter = {
   id: string;
   status: string;
+  consentVerified?: boolean;
   discipline?: string;
   draft?: {
     narrative: string;
@@ -89,18 +90,12 @@ export function App() {
   const [message, setMessage] = useState("Start an encounter, verify consent, then use live listening or edit the transcript.");
   const [previewFacts, setPreviewFacts] = useState<ExtractedFact[]>([]);
   const [openSection, setOpenSection] = useState<string | null>(rehabSciIrfAssessmentTemplate.sections[0]?.id ?? null);
-  const [openaiOnServer, setOpenaiOnServer] = useState<boolean | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
   const [manualFieldEdits, setManualFieldEdits] = useState<Record<string, string>>({});
   const [confirmedFieldIds, setConfirmedFieldIds] = useState<Record<string, true>>({});
   const [guidedCaptureOn, setGuidedCaptureOn] = useState(true);
   const [guidedCursor, setGuidedCursor] = useState(0);
   const [reviewCursor, setReviewCursor] = useState(-1);
   const [activeReviewFieldId, setActiveReviewFieldId] = useState<string | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaChunksRef = useRef<Blob[]>([]);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
   const fieldInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const audioHintRef = useRef(audioHint);
@@ -152,21 +147,6 @@ export function App() {
     }, 250);
     return () => window.clearTimeout(handle);
   }, [historyFilterDiscipline, patientId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${apiBase}/speech/status`)
-      .then((r) => r.json())
-      .then((d: { openaiConfigured?: boolean }) => {
-        if (!cancelled) setOpenaiOnServer(Boolean(d.openaiConfigured));
-      })
-      .catch(() => {
-        if (!cancelled) setOpenaiOnServer(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -334,8 +314,8 @@ export function App() {
     }
   }
 
-  async function runStep(path: string, method: "POST" = "POST", body?: unknown, role: "nurse" | "physician" = "nurse") {
-    if (!encounter && !path.endsWith("/start")) return;
+  async function runStep(path: string, method: "POST" = "POST", body?: unknown, role: "nurse" | "physician" = "nurse"): Promise<boolean> {
+    if (!encounter && !path.endsWith("/start")) return false;
 
     const target = path.endsWith("/start") ? `${apiBase}${path}` : `${apiBase}/encounters/${encounter?.id}${path}`;
     try {
@@ -350,13 +330,13 @@ export function App() {
         data = (await res.json()) as Record<string, unknown>;
       } catch {
         setMessage(`Request failed (${res.status}). The API did not return JSON.`);
-        return;
+        return false;
       }
 
       if (!res.ok) {
         const err = data.error;
         setMessage(typeof err === "string" ? err : "Request failed");
-        return;
+        return false;
       }
 
       setEncounter((data.updated ?? data) as Encounter);
@@ -371,93 +351,28 @@ export function App() {
         void loadPatientHistory(patientId);
       }
       setMessage(`Step complete: ${path}`);
+      return true;
     } catch (e) {
       const hint = import.meta.env.VITE_API_ORIGIN
         ? "Check VITE_API_ORIGIN and that the API is reachable (TLS/CORS/network)."
         : "Start the API on port 8080 in another terminal: cd backend && npm run dev";
       setMessage(`Connection failed (${e instanceof Error ? e.message : "unknown error"}). ${hint}`);
+      return false;
     }
   }
 
-  async function startMediaRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      const mime =
-        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm")
-            ? "audio/webm"
-            : "";
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      mediaChunksRef.current = [];
-      rec.ondataavailable = (ev) => {
-        if (ev.data.size > 0) mediaChunksRef.current.push(ev.data);
-      };
-      rec.start(400);
-      mediaRecorderRef.current = rec;
-      setRecording(true);
-      setMessage("Recording… click Stop, then Send to server.");
-    } catch (e) {
-      setMessage(`Microphone error: ${e instanceof Error ? e.message : "unknown"}`);
-    }
-  }
-
-  function stopMediaRecording() {
-    const rec = mediaRecorderRef.current;
-    if (rec && rec.state === "recording") {
-      rec.requestData();
-    }
-    if (rec && rec.state !== "inactive") {
-      rec.stop();
-    }
-    mediaRecorderRef.current = null;
-    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
-    mediaStreamRef.current = null;
-    setRecording(false);
-    setMessage("Recording stopped. Click Send to server to transcribe.");
-  }
-
-  async function transcribeRecordingOnServer() {
-    if (mediaChunksRef.current.length === 0) {
-      setMessage("No recording in memory. Press Start recording, speak, then Stop.");
+  async function generateDraftFlow() {
+    if (!encounter) {
+      setMessage("Start an encounter first.");
       return;
     }
-    const blob = new Blob(mediaChunksRef.current, {
-      type: mediaChunksRef.current[0]?.type || "audio/webm"
-    });
-    if (blob.size < 200) {
-      setMessage("Recording is too short to transcribe.");
-      return;
+    if (!encounter.consentVerified) {
+      const consentOk = await runStep("/consent");
+      if (!consentOk) return;
     }
-    mediaChunksRef.current = [];
-    const fd = new FormData();
-    fd.append("file", blob, "visit.webm");
-    setTranscribing(true);
-    setMessage("Sending audio to your API for transcription…");
-    try {
-      const res = await fetch(`${apiBase}/speech/transcribe`, {
-        method: "POST",
-        headers: { ...baseHeaders, "x-user-id": clinicianId },
-        body: fd
-      });
-      const data = (await res.json()) as { text?: string; error?: string };
-      if (!res.ok) {
-        setMessage(data.error || `Transcription failed (${res.status})`);
-        return;
-      }
-      const text = data.text?.trim();
-      if (text) {
-        setAudioHint((prev) => (prev.trimEnd() ? `${prev.trimEnd()}\n\n` : "") + text);
-        setMessage("Transcription added under your conversation text.");
-      } else {
-        setMessage("Transcription returned no text.");
-      }
-    } catch (e) {
-      setMessage(`Transcription request failed: ${e instanceof Error ? e.message : "unknown"}`);
-    } finally {
-      setTranscribing(false);
-    }
+    const transcribeOk = await runStep("/transcribe", "POST", { audioHint });
+    if (!transcribeOk) return;
+    await runStep("/draft");
   }
 
   return (
@@ -563,7 +478,7 @@ export function App() {
             <button disabled={!encounter} onClick={() => runStep("/transcribe", "POST", { audioHint })}>
               Save transcript
             </button>
-            <button disabled={!encounter} onClick={() => runStep("/draft")}>
+            <button disabled={!encounter} onClick={() => void generateDraftFlow()}>
               Generate draft
             </button>
           </div>
@@ -612,9 +527,8 @@ export function App() {
           </div>
           <p className="help">
             Sections update from this text within about half a second.{" "}
-            <strong>Start listening</strong> uses Google (often blocked on hospital Wi‑Fi).{" "}
-            <strong>Record &amp; transcribe</strong> sends audio to the API running on your machine, then to OpenAI if you
-            set OPENAI_API_KEY (see below).
+            <strong>Start listening</strong> uses browser speech recognition, and <strong>Save transcript</strong> stores this note under
+            the current patient/clinician history.
           </p>
           <textarea
             className="transcript"
@@ -654,34 +568,6 @@ export function App() {
             </span>
           </div>
           {speech.speechError ? <p className="speech-error">{speech.speechError}</p> : null}
-          {speech.speechError ? (
-            <p className="help server-speech-hint">
-              Use <strong>Record &amp; transcribe</strong> below so audio goes to your app server instead of Google
-              Chrome speech.
-            </p>
-          ) : null}
-
-          <div id="server-transcribe" className="server-transcribe">
-            <h3>Record &amp; transcribe (server)</h3>
-            <p className="help">
-              {openaiOnServer === null && "Checking server…"}
-              {openaiOnServer === false &&
-                "The API does not have OPENAI_API_KEY set. Add it to the backend environment and restart: export OPENAI_API_KEY=sk-... then npm run dev."}
-              {openaiOnServer === true &&
-                "OpenAI Whisper is configured on the server. Audio is sent to your API, then to OpenAI (not through Chrome speech). Use a BAA with OpenAI for PHI."}
-            </p>
-            <div className="actions">
-              <button type="button" disabled={recording || transcribing} onClick={() => void startMediaRecording()}>
-                Start recording
-              </button>
-              <button type="button" className="btn-danger" disabled={!recording || transcribing} onClick={stopMediaRecording}>
-                Stop recording
-              </button>
-              <button type="button" disabled={transcribing || recording} onClick={() => void transcribeRecordingOnServer()}>
-                {transcribing ? "Transcribing…" : "Send to server (Whisper)"}
-              </button>
-            </div>
-          </div>
 
           <div className="actions">
             <button
