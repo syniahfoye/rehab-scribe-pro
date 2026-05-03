@@ -127,12 +127,22 @@ app.post("/api/encounters/:id/signoff", requireMfaHeader, requireRole("nurse"), 
   const encounter = getEncounter(req.params.id);
   if (!encounter) return res.status(404).json({ error: "Encounter not found" });
   if (!encounter.draft) return res.status(400).json({ error: "Draft required" });
-  if (encounter.draft.missingRequiredFields.length > 0) {
-    return res.status(400).json({ error: "Cannot sign off with missing required fields" });
+  const manualFieldEditsRaw = req.body?.manualFieldEdits;
+  const manualFieldEdits: Record<string, string> =
+    manualFieldEditsRaw && typeof manualFieldEditsRaw === "object" ? (manualFieldEditsRaw as Record<string, string>) : {};
+  const requiredMissingAfterManual = encounter.draft.missingRequiredFields.filter(
+    (fieldId) => !String(manualFieldEdits[fieldId] ?? "").trim()
+  );
+  if (requiredMissingAfterManual.length > 0) {
+    return res.status(400).json({ error: "Cannot sign off with missing required fields", missingRequiredFields: requiredMissingAfterManual });
   }
 
   const signerId = String(req.header("x-user-id") || encounter.clinicianId);
-  const updated = updateEncounter(encounter.id, { status: "signed_off", signedOffBy: signerId });
+  const updated = updateEncounter(encounter.id, {
+    status: "signed_off",
+    signedOffBy: signerId,
+    draft: { ...encounter.draft, missingRequiredFields: requiredMissingAfterManual }
+  });
   appendAudit({ encounterId: encounter.id, action: "signed_off", actor: signerId });
   res.json(updated);
 });

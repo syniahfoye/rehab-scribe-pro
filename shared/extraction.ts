@@ -9,6 +9,40 @@ type RegexRule = {
   staticValue?: string | boolean;
 };
 
+function normalizeTranscript(text: string): string {
+  return text
+    .replace(/([a-z])([A-Z])/g, "$1. $2")
+    .replace(/\s+/g, " ")
+    .replace(
+      /\b(patient name is|name is|date of birth is|date of birth|account name is|mrn|blood pressure is|blood pressure|heart rate is|heart rate|respiratory rate is|respiratory rate|temperature is|temperature|weight is|weight|chief complaint is|chief complaint)\b/gi,
+      ". $1 "
+    )
+    .replace(/\.\s+\./g, ". ")
+    .trim();
+}
+
+function parseNumberToken(raw: string): number {
+  const cleaned = raw.trim().toLowerCase();
+  const words: Record<string, number> = {
+    zero: 0,
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    eleven: 11,
+    twelve: 12
+  };
+  if (cleaned in words) return words[cleaned];
+  const numeric = Number(cleaned);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
 const regexRules: RegexRule[] = [
   {
     pattern: /(?:patient name is|name is|patient is|i am|call me)\s+([A-Za-z][a-z]+(?:\s+[A-Za-z][a-z]+)+)/,
@@ -17,16 +51,27 @@ const regexRules: RegexRule[] = [
     value: "match1"
   },
   {
-    pattern: /(?:date of birth|d\.?o\.?b\.?|born on)\s*[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s+\d{1,2}\s+\d{4})/i,
+    pattern: /(?:date of birth|d\.?o\.?b\.?|born on)\s*[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s+\d{1,2}\s+\d{4}|\d{4}\s+\d{4})/i,
     fieldId: "date_of_birth",
     confidence: 0.8,
+    value: "match1"
+  },
+  {
+    pattern: /(?:account name|account number|account)\s*(?:is|#|:)?\s*([A-Z0-9\-]{3,})/i,
+    fieldId: "mrn",
+    confidence: 0.76,
     value: "match1"
   },
   { pattern: /(?:mrn|medical record)\s*[#:]?\s*([A-Z0-9\-]{4,})/i, fieldId: "mrn", confidence: 0.78, value: "match1" },
   { pattern: /blood pressure\s+(\d{2,3})\s*(?:\/|over)\s*(\d{2,3})/i, fieldId: "vital_bp", confidence: 0.85, value: "match1_slash_pair" },
   { pattern: /(?:bp|blood pressure)\s+(\d{2,3})\/(\d{2,3})/i, fieldId: "vital_bp", confidence: 0.85, value: "match1_slash_pair" },
   { pattern: /(?:heart rate|hr|pulse)\s*(?:is|of)?\s*(\d{2,3})\b/i, fieldId: "vital_hr", confidence: 0.84, value: "match1_num" },
-  { pattern: /(?:respiratory rate|respirations|rr)\s*(?:is|of)?\s*(\d{1,2})\b/i, fieldId: "vital_rr", confidence: 0.83, value: "match1_num" },
+  {
+    pattern: /(?:respiratory rate|respirations|rr)\s*(?:is|of)?\s*(\d{1,2}|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/i,
+    fieldId: "vital_rr",
+    confidence: 0.83,
+    value: "match1_num"
+  },
   { pattern: /(?:temp|temperature)\s*(?:is|of)?\s*(\d{2}(?:\.\d)?)\s*(?:f|degrees)?/i, fieldId: "vital_temp_f", confidence: 0.8, value: "match1_num" },
   { pattern: /(?:spo2|sat|oxygen)\s*(?:is|of)?\s*(\d{2,3})\s*%?/i, fieldId: "vital_spo2", confidence: 0.82, value: "match1_num" },
   { pattern: /(?:weight)\s*(?:is|of)?\s*(\d{2,3})\s*(?:pounds|lbs|kg)?/i, fieldId: "weight_kg", confidence: 0.72, value: "match1_num" },
@@ -72,7 +117,7 @@ function resolveValue(rule: RegexRule, match: RegExpMatchArray): string | number
     return rule.staticValue as string | boolean;
   }
   if (rule.value === "match1_num") {
-    return Number(match[1] || 0);
+    return parseNumberToken(match[1] || "0");
   }
   if (rule.value === "match1_bool") {
     return true;
@@ -95,7 +140,7 @@ function resolveValue(rule: RegexRule, match: RegExpMatchArray): string | number
 
 /** Pull structured facts from free text (demo-grade keyword / pattern matching). */
 export function extractFactsFromTranscript(transcript: string): ExtractedFact[] {
-  const text = transcript.trim();
+  const text = normalizeTranscript(transcript.trim());
   if (!text) return [];
 
   const facts: ExtractedFact[] = [];

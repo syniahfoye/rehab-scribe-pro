@@ -148,11 +148,36 @@ export function App() {
     return base;
   }, [encounter?.draft?.lowConfidenceFields, manualFieldEdits, previewFacts]);
 
+  const requiredFieldIds = useMemo(
+    () =>
+      rehabSciIrfAssessmentTemplate.sections.flatMap((section) =>
+        section.fields.filter((field) => field.required).map((field) => field.id)
+      ),
+    []
+  );
+  const currentFieldValues = useMemo(() => {
+    const values = new Map<string, string>();
+    displayFacts.forEach((fact) => {
+      const text = formatFieldValue(fact.value).trim();
+      if (text) values.set(fact.fieldId, text);
+    });
+    Object.entries(manualFieldEdits).forEach(([fieldId, value]) => {
+      const text = value.trim();
+      if (text) values.set(fieldId, text);
+    });
+    return values;
+  }, [displayFacts, manualFieldEdits]);
+  const currentMissingRequired = useMemo(
+    () => requiredFieldIds.filter((fieldId) => !currentFieldValues.has(fieldId)),
+    [currentFieldValues, requiredFieldIds]
+  );
+
   const canSignOff = useMemo(() => {
-    if (!encounter?.draft) return false;
-    return encounter.draft.missingRequiredFields.length === 0;
-  }, [encounter]);
+    if (!encounter) return false;
+    return currentMissingRequired.length === 0;
+  }, [currentMissingRequired, encounter]);
   const missingRequiredCount = encounter?.draft?.missingRequiredFields.length ?? 0;
+  const missingRequiredDisplayCount = encounter ? currentMissingRequired.length : missingRequiredCount;
   const lowConfidenceCount = lowConfidence.size;
   const guidedTargets = useMemo<GuidedTarget[]>(
     () =>
@@ -408,10 +433,10 @@ export function App() {
           <p className="kpi-value">{displayFacts.length}</p>
           <p className="kpi-sub">{previewFacts.length} detected from live transcript</p>
         </article>
-        <article className={`kpi-card ${missingRequiredCount > 0 ? "kpi-warning" : "kpi-good"}`}>
+        <article className={`kpi-card ${missingRequiredDisplayCount > 0 ? "kpi-warning" : "kpi-good"}`}>
           <p className="kpi-label">Required missing</p>
-          <p className="kpi-value">{missingRequiredCount}</p>
-          <p className="kpi-sub">{missingRequiredCount === 0 ? "Ready for sign-off" : "Complete required items"}</p>
+          <p className="kpi-value">{missingRequiredDisplayCount}</p>
+          <p className="kpi-sub">{missingRequiredDisplayCount === 0 ? "Ready for sign-off" : "Complete required items"}</p>
         </article>
         <button
           type="button"
@@ -535,7 +560,16 @@ export function App() {
           </div>
 
           <div className="actions">
-            <button disabled={!canSignOff} onClick={() => runStep("/signoff")}>
+            <button
+              disabled={!canSignOff}
+              onClick={() =>
+                runStep("/signoff", "POST", {
+                  manualFieldEdits: Object.fromEntries(
+                    Object.entries(manualFieldEdits).filter(([, value]) => value.trim())
+                  )
+                })
+              }
+            >
               Sign off
             </button>
             <button onClick={() => runStep("/export", "POST", undefined, "physician")}>
@@ -588,7 +622,7 @@ export function App() {
                           const fact = factsById.get(field.id);
                           const valueText = manualFieldEdits[field.id] ?? (fact ? formatFieldValue(fact.value) : "");
                           const warn = lowConfidence.has(field.id);
-                          const missing = encounter?.draft?.missingRequiredFields.includes(field.id);
+                          const missing = currentMissingRequired.includes(field.id);
                           const manuallyEdited = manualFieldEdits[field.id] !== undefined;
                           const confirmed = Boolean(confirmedFieldIds[field.id]);
                           return (
