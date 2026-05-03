@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Secure Documentation Rehab Scribe Pro - Y2K Pink Deck</title>
+  <style>
+    :root {
+      --bg1: #ffd1f5;
+      --bg2: #ffc2ec;
+      --bg3: #ffe3f8;
+      --hot-pink: #ff38b8;
+      --bubblegum: #ff7fd7;
+      --magenta: #c90088;
+      --ink: #4a1a3b;
+      --white: #fff6fd;
+      --glow: 0 0 0 2px rgba(255, 56, 184, 0.25), 0 0 24px rgba(255, 56, 184, 0.2);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Trebuchet MS", "Verdana", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 20% 10%, var(--bg3), transparent 30%),
+        radial-gradient(circle at 80% 20%, #ffd8f7, transparent 35%),
+        linear-gradient(135deg, var(--bg1), var(--bg2));
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .sparkles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      background-image:
+        radial-gradient(circle, #fff 1px, transparent 2px),
+        radial-gradient(circle, #ffecfa 1px, transparent 2px),
+        radial-gradient(circle, #ffc8f0 1px, transparent 2px);
+      background-size: 120px 120px, 200px 200px, 280px 280px;
+      background-position: 0 0, 40px 80px, 100px 30px;
+      animation: drift 18s linear infinite;
+    }
+
+    @keyframes drift {
+      from { transform: translateY(0); }
+      to { transform: translateY(-40px); }
+    }
+
+    .deck {
+      position: relative;
+      width: min(1100px, 94vw);
+      height: min(700px, 88vh);
+      margin: 5vh auto;
+      border-radius: 24px;
+      border: 3px solid #ff9de3;
+      box-shadow: var(--glow), 0 20px 60px rgba(167, 20, 109, 0.25);
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(255, 244, 252, 0.86));
+      overflow: hidden;
+    }
+
+    .chrome-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: linear-gradient(90deg, #ff5ec7, #ff96de 60%, #ffd7f3);
+      border-bottom: 2px solid #ffb0e7;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 0.3px;
+      color: #fff;
+      text-shadow: 0 1px 0 rgba(146, 0, 80, 0.5);
+    }
+
+    .chrome-dots {
+      display: flex;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.45);
+    }
+
+    .slides {
+      position: relative;
+      height: calc(100% - 108px);
+      padding: 24px 28px;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 24px 28px;
+      opacity: 0;
+      transform: translateX(30px) scale(0.98);
+      transition: 280ms ease;
+      background: rgba(255, 251, 255, 0.92);
+      border: 2px solid #ffc4ec;
+      border-radius: 18px;
+      padding: 24px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5);
+      overflow: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+      z-index: 2;
+    }
+
+    h1, h2 {
+      margin: 0;
+      color: var(--magenta);
+      font-family: "Arial Black", "Trebuchet MS", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    h1 { font-size: clamp(1.35rem, 2.8vw, 2.2rem); }
+    h2 { font-size: clamp(1.2rem, 2.2vw, 1.8rem); }
+
+    .subtitle {
+      margin-top: 6px;
+      font-size: 0.95rem;
+      color: #7d2b62;
+      font-weight: 700;
+    }
+
+    .content {
+      font-size: clamp(0.95rem, 1.4vw, 1.08rem);
+      line-height: 1.45;
+      overflow: auto;
+      padding-right: 6px;
+    }
+
+    ul {
+      margin: 0.4rem 0 0;
+      padding-left: 1.2rem;
+    }
+
+    li { margin: 0.42rem 0; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .pill {
+      display: inline-block;
+      margin: 4px 6px 0 0;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #ffe5f7;
+      border: 1px solid #ffbce9;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #83295f;
+    }
+
+    .stat-card {
+      background: linear-gradient(180deg, #fff2fb, #ffe9f8);
+      border: 1px solid #ffb9e8;
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin: 8px 0;
+    }
+
+    .code {
+      font-family: "Courier New", monospace;
+      font-size: 0.86rem;
+      background: #fff0fb;
+      border: 1px dashed #ff9fe2;
+      border-radius: 10px;
+      padding: 8px;
+      margin-top: 8px;
+      white-space: pre-wrap;
+    }
+
+    .qr-panel {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff0fb;
+      border: 1px solid #ffb5e8;
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .qr-panel img {
+      width: 98px;
+      height: 98px;
+      border-radius: 8px;
+      border: 1px solid #f59adf;
+      background: white;
+    }
+
+    .qr-text {
+      font-size: 0.82rem;
+      color: #7e3363;
+      line-height: 1.35;
+      max-width: 260px;
+    }
+
+    .controls {
+      position: absolute;
+      inset: auto 0 0;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 14px;
+      background: linear-gradient(90deg, #ff8fda, #ffc2ec);
+      border-top: 2px solid #ffade6;
+    }
+
+    button {
+      border: 1px solid #c92690;
+      background: linear-gradient(180deg, #ff55c2, #d2198e);
+      color: white;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+    }
+
+    button:hover { filter: brightness(1.06); }
+
+    .counter {
+      font-weight: 800;
+      color: #7a1f5a;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid #ff9fdf;
+      border-radius: 999px;
+      padding: 6px 12px;
+      min-width: 92px;
+      text-align: center;
+    }
+
+    .tip {
+      color: #7e3363;
+      font-size: 0.82rem;
+      margin-left: 8px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 900px) {
+      .deck { height: 92vh; margin-top: 2vh; }
+      .slide { inset: 16px; padding: 16px; }
+      .slides { padding: 16px; }
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sparkles" aria-hidden="true"></div>
+  <main class="deck" role="application" aria-label="Rehab Scribe Pro presentation">
+    <div class="chrome-bar">
+      <div>Rehab Scribe Pro Presentation.exe</div>
+      <div class="chrome-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+    </div>
+
+    <section class="slides">
+      <article class="slide active">
+        <header>
+          <h1>Secure Documentation Rehab Scribe Pro</h1>
+          <p class="subtitle">Y2K Pink Capstone Presentation • Syniah Foye • Biomedical Engineering</p>
+        </header>
+        <div class="content">
+          <div class="stat-card"><strong>Project Mission:</strong> Reduce rehab documentation burden with secure, human-in-the-loop AI support.</div>
+          <p>This presentation covers the full report: clinical need, background, Cursor build process, security constraints, technical results, discussion, and next steps toward real VA integration.</p>
+          <span class="pill">SCI Rehab</span><span class="pill">AI Scribe</span><span class="pill">Clinical Safety</span><span class="pill">VA Deployment Plan</span>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Problem & Clinical Context</h2></header>
+        <div class="content two-col">
+          <div>
+            <ul>
+              <li>SCI rehab patients have long inpatient stays with daily OT/PT/RT/nursing documentation demands.</li>
+              <li>Clinicians often spend major time charting after sessions.</li>
+              <li>Documentation quality and continuity matter for safety, billing, and team communication.</li>
+            </ul>
+          </div>
+          <div>
+            <div class="stat-card"><strong>Observed Need:</strong> 1 hour care session + significant post-session charting overhead.</div>
+            <div class="stat-card"><strong>Goal:</strong> assist documentation speed without sacrificing clinician control.</div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Background: Scribes & AI Scribes</h2></header>
+        <div class="content">
+          <ul>
+            <li><strong>Traditional scribes:</strong> improve throughput but costly and hard to scale.</li>
+            <li><strong>Generic AI scribes:</strong> fast drafting, but often not rehab-specific and may hide uncertainty.</li>
+            <li><strong>Rehab Scribe Pro difference:</strong> structured rehab template mapping + confidence alerts + mandatory human sign-off.</li>
+          </ul>
+          <div class="stat-card"><strong>Core Safety Philosophy:</strong> AI drafts, clinicians decide.</div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Cursor Setup & Build Workflow</h2></header>
+        <div class="content two-col">
+          <div>
+            <p><strong>Prompt-driven development used to:</strong></p>
+            <ul>
+              <li>Create secure backend encounter APIs.</li>
+              <li>Build React dashboard for clinical review.</li>
+              <li>Add confidence review navigation.</li>
+              <li>Add manual assessment editing.</li>
+            </ul>
+          </div>
+          <div>
+            <p><strong>Delivery sequence:</strong></p>
+            <ol>
+              <li>Encounter workflow</li>
+              <li>Transcript extraction</li>
+              <li>Assessment mapping UI</li>
+              <li>Review alerts</li>
+              <li>Manual correction</li>
+            </ol>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>System Design Overview</h2></header>
+        <div class="content">
+          <div class="two-col">
+            <div>
+              <p><strong>Frontend (React + TS)</strong></p>
+              <ul>
+                <li>Encounter controls</li>
+                <li>Live transcript area</li>
+                <li>Assessment sections</li>
+                <li>KPI cards + confidence alerts</li>
+              </ul>
+            </div>
+            <div>
+              <p><strong>Backend (Express + TS)</strong></p>
+              <ul>
+                <li>Role and MFA checks</li>
+                <li>Consent-first workflow</li>
+                <li>Draft generation endpoints</li>
+                <li>Sign-off and export gating</li>
+              </ul>
+            </div>
+          </div>
+          <div class="code">/api/encounters/start -> /consent -> /transcribe -> /draft -> /signoff -> /export</div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Design Constraints & Compliance</h2></header>
+        <div class="content">
+          <ul>
+            <li><strong>HIPAA:</strong> protect PHI, limit access, secure transmission/storage.</li>
+            <li><strong>Human oversight:</strong> no autonomous final documentation.</li>
+            <li><strong>Auditability:</strong> preserve action history for accountability.</li>
+            <li><strong>Role controls:</strong> nurse/physician/auditor permissions.</li>
+            <li><strong>Risk transparency:</strong> low-confidence outputs must be visible and reviewable.</li>
+          </ul>
+          <span class="pill">HIPAA</span><span class="pill">HITECH</span><span class="pill">Role-Based Access</span><span class="pill">Audit Trail</span>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Design Results: What Was Built</h2></header>
+        <div class="content two-col">
+          <div>
+            <ul>
+              <li>Healthcare dashboard UI with Y2K-inspired customization.</li>
+              <li>Confidence alert card cycles through uncertain fields.</li>
+              <li>Auto-open section + scroll/focus + highlight reviewed field.</li>
+              <li>Manual assessment edit mode for clinical correction.</li>
+            </ul>
+          </div>
+          <div>
+            <div class="stat-card"><strong>Demo URL:</strong> http://localhost:5173</div>
+            <div class="stat-card"><strong>Brand:</strong> Secure Documentation Rehab Scribe Pro</div>
+            <div class="qr-panel">
+              <img
+                src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=http%3A%2F%2Flocalhost%3A5173"
+                alt="QR code for demo website"
+              />
+              <div class="qr-text">
+                <strong>Scan to open demo</strong><br />
+                QR currently points to <code>http://localhost:5173</code>.<br />
+                Replace with deployed URL before presenting to others.
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Discussion of Results</h2></header>
+        <div class="content">
+          <ul>
+            <li>Prototype shows AI can reduce charting friction in rehab workflows.</li>
+            <li>Confidence-guided review keeps clinician attention on uncertain items.</li>
+            <li>Manual edits preserve clinical judgement and ownership.</li>
+            <li>Current version is MVP: still needs enterprise hosting, identity integration, and long-term validation.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Next Step 1: Build into a Real App</h2></header>
+        <div class="content two-col">
+          <div>
+            <p><strong>Productization roadmap</strong></p>
+            <ul>
+              <li>Production hosting (cloud/on-prem)</li>
+              <li>SSO (SAML/OIDC)</li>
+              <li>Encrypted database + key management</li>
+              <li>FHIR/EHR interoperability</li>
+              <li>Reliability + monitoring + incident response</li>
+            </ul>
+          </div>
+          <div>
+            <p><strong>Clinical UX roadmap</strong></p>
+            <ul>
+              <li>Tablet bedside mode</li>
+              <li>Role-specific screens</li>
+              <li>Review analytics dashboard</li>
+              <li>Training and workflow playbooks</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Next Step 2: Integrate in a Real VA Rehab Clinic</h2></header>
+        <div class="content">
+          <ol>
+            <li><strong>Stakeholder alignment:</strong> rehab chief, nursing leadership, OT/PT champions.</li>
+            <li><strong>Governance review:</strong> privacy, security, legal, AI governance.</li>
+            <li><strong>Sandbox technical validation:</strong> identity, audit logs, safe data flow.</li>
+            <li><strong>Pilot launch:</strong> one rehab unit, human-in-the-loop only.</li>
+            <li><strong>Evaluation:</strong> time saved, quality, clinician satisfaction, safety incidents.</li>
+            <li><strong>Scale-up decision:</strong> phased expansion by service line.</li>
+          </ol>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>Who & What Approvals You Need (VA)</h2></header>
+        <div class="content two-col">
+          <div>
+            <p><strong>People/teams</strong></p>
+            <ul>
+              <li>Clinical leadership sponsor</li>
+              <li>VA Privacy Officer</li>
+              <li>VA Information Security/OIT</li>
+              <li>Clinical Informatics/EHR teams</li>
+              <li>Procurement + Legal</li>
+              <li>Quality & Safety committee</li>
+            </ul>
+          </div>
+          <div>
+            <p><strong>Key compliance tracks</strong></p>
+            <ul>
+              <li>HIPAA Privacy + Security Rules</li>
+              <li>HITECH requirements</li>
+              <li>42 CFR Part 2 (if applicable)</li>
+              <li>BAA/DUA contracting</li>
+              <li>RMF/ATO-aligned security process</li>
+            </ul>
+          </div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>12-Month Integration Timeline</h2></header>
+        <div class="content">
+          <div class="stat-card"><strong>Months 1-2:</strong> sponsorship, use-case scope, metrics</div>
+          <div class="stat-card"><strong>Months 3-4:</strong> architecture, security/privacy scoping</div>
+          <div class="stat-card"><strong>Months 5-6:</strong> sandbox integration + governance submissions</div>
+          <div class="stat-card"><strong>Months 7-8:</strong> controlled pilot in one rehab setting</div>
+          <div class="stat-card"><strong>Months 9-10:</strong> evaluate outcomes and remediate gaps</div>
+          <div class="stat-card"><strong>Months 11-12:</strong> scale-up decision and expansion plan</div>
+        </div>
+      </article>
+
+      <article class="slide">
+        <header><h2>References & Closing</h2></header>
+        <div class="content">
+          <ul>
+            <li>Reddy et al., governance model for AI in healthcare (JAMIA)</li>
+            <li>U.S. HHS OCR: HIPAA Security Rule guidance</li>
+            <li>Rajkomar et al., Machine Learning in Medicine (NEJM)</li>
+            <li>AHIMA clinical documentation integrity resources</li>
+          </ul>
+          <div class="stat-card"><strong>Closing message:</strong> AI should support rehab clinicians, not replace clinical judgement. Rehab Scribe Pro is designed for that balance.</div>
+          <p><strong>Thank you!</strong> Questions & feedback welcome.</p>
+        </div>
+      </article>
+    </section>
+
+    <footer class="controls">
+      <div>
+        <button id="prevBtn" type="button">Prev</button>
+        <button id="nextBtn" type="button">Next</button>
+        <span class="tip">Use Arrow Keys too</span>
+      </div>
+      <div class="counter" id="counter">1 / 13</div>
+    </footer>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const counter = document.getElementById('counter');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    let index = 0;
+
+    function render() {
+      slides.forEach((slide, i) => slide.classList.toggle('active', i === index));
+      counter.textContent = `${index + 1} / ${slides.length}`;
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === slides.length - 1;
+    }
+
+    function next() { if (index < slides.length - 1) { index += 1; render(); } }
+    function prev() { if (index > 0) { index -= 1; render(); } }
+
+    prevBtn.addEventListener('click', prev);
+    nextBtn.addEventListener('click', next);
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') next();
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') prev();
+    });
+
+    render();
+  </script>
+</body>
+</html>

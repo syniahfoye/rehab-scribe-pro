@@ -1,0 +1,3 @@
+# Stale emit if a compiler ever writes JS next to TS in this folder
+*.js
+*.js.map
